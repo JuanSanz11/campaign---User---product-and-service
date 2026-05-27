@@ -1,0 +1,457 @@
+{
+  "name": "Campaña Email Masivo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campaign-start",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1504,
+        -48
+      ],
+      "id": "389b8fe3-5928-4b2a-b183-ca5cf04d72ab",
+      "name": "Webhook - Campaign",
+      "webhookId": "746f52e3-2bf0-46ec-ac0a-806a4bb82261"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manual-send",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        192
+      ],
+      "id": "24d082a6-ef9e-4bbd-ab56-78c9c9c0cf71",
+      "name": "Webhook - Manual Send",
+      "webhookId": "55638c0f-2957-417b-a10d-e44e56a00d63"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.campaignId !== undefined && $json.campaignId !== 'MANUAL' }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        80
+      ],
+      "id": "dfe55b50-6e71-405f-8fca-b29fd34b648d",
+      "name": "Manual or Campaign?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst campaignId = body.campaignId;\nconst batchSize = body.batchSize || 10;\nconst batchIntervalMinutes = body.batchIntervalMinutes || 2;\nconst pauseHours = body.pauseHours || 1;\nconst contacts = body.contacts || [];\n\nif (!Array.isArray(contacts)) {\n  return [];\n}\n\nreturn contacts.map(contact => ({\n  json: {\n    ...contact,\n    campaignId,\n    batchSize,\n    batchIntervalMinutes,\n    pauseHours,\n    messageIndex: 0\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        -48
+      ],
+      "id": "bba727df-6dda-41a4-8900-5edfd46cb6c7",
+      "name": "Prepare Campaign Contacts"
+    },
+    {
+      "parameters": {
+        "batchSize": "={{ $json.batchSize }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        -48
+      ],
+      "id": "c4b4abb0-fec3-4ffd-9ec0-3cbe08daf374",
+      "name": "Split in Batches"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://app:3000/api/campaigns/{{ $json.campaignId }}/log",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contactId",
+              "value": "={{ $json.uuid }}"
+            },
+            {
+              "name": "messageIndex",
+              "value": "={{ $json.messageIndex + 1 }}"
+            },
+            {
+              "name": "channel",
+              "value": "EMAIL"
+            },
+            {
+              "name": "status",
+              "value": "SUCCESS"
+            },
+            {
+              "name": "message",
+              "value": "=Email enviado a {{ $json.email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -576,
+        -64
+      ],
+      "id": "ec5a2773-b872-4dfb-9107-ea97f80dc9ea",
+      "name": "Send Campaign Email"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -64
+      ],
+      "id": "0e37de55-658d-4afb-b309-2830412c650f",
+      "name": "Wait 2 Minutes",
+      "webhookId": "531fac70-122f-455a-b25e-d86efeb9538a"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -64
+      ],
+      "id": "73736915-399b-4d6e-a578-47911ce1b506",
+      "name": "Check Batch Complete"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $input.item.index === $input.item.json.batchSize - 1 }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        16,
+        -80
+      ],
+      "id": "36bd7c9e-4433-40dd-97a5-9d5fe66c14f3",
+      "name": "Batch Complete?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        416,
+        -64
+      ],
+      "id": "f1f7be53-f255-490a-bdd6-d82f6e60345e",
+      "name": "Pause 1 Hour",
+      "webhookId": "f81285fa-593f-4d5f-a81f-d139c8bd53aa"
+    },
+    {
+      "parameters": {
+        "url": "=http://app:3000/api/campaigns/{{ $json.campaignId }}/status",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        224,
+        -96
+      ],
+      "id": "5f612dfc-ca64-42df-85d2-20898d308745",
+      "name": "Continue Next Batch"
+    },
+    {
+      "parameters": {
+        "fromEmail": "=no-reply@example.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ 'Campaña: ' + ($json.campaignId || 'Manual') }}",
+        "html": "=Hola {{$json.nombre}},\n\n{{$json.mensajePersonalizado || 'Este es un mensaje de campaña.'}}\n\nSaludos.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -736,
+        -64
+      ],
+      "id": "254f9532-e51d-41d2-b545-567251108fc2",
+      "name": "Send Campaign Email (SMTP)",
+      "webhookId": "d6f0991a-102f-465f-8cc6-f063e6db8355",
+      "credentials": {
+        "smtp": {
+          "id": "VD1M3JwI6MEu6YrA",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:3000/api/campaigns/MANUAL/log",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contactId",
+              "value": "= $json.uuid || null"
+            },
+            {
+              "name": "messageIndex",
+              "value": "=1"
+            },
+            {
+              "name": "channel",
+              "value": "EMAIL"
+            },
+            {
+              "name": "status",
+              "value": "SUCCESS"
+            },
+            {
+              "name": "message",
+              "value": "=Email enviado (Manual)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -928,
+        320
+      ],
+      "id": "ddd25b45-832e-411c-af2e-66612d217281",
+      "name": "Log Manual Send1"
+    },
+    {
+      "parameters": {
+        "fromEmail": "maverick.mitchell16@ethereal.email",
+        "toEmail": "=={{ $json.body.contacts[0].email }}",
+        "subject": "=={{ 'Mensaje para ' + $json.body.contacts[0].nombre }}",
+        "html": "=Hola {{$json.nombre}},\n\n{{$json.mensajePersonalizado || 'Este es un mensaje manual enviado desde el front.'}}\n\nSaludos.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -1104,
+        320
+      ],
+      "id": "440eb916-655f-4f4d-bab7-db20d0b7a800",
+      "name": "Send an Email1",
+      "webhookId": "058d52f1-660e-4325-991c-ffcd8b3b737e",
+      "credentials": {
+        "smtp": {
+          "id": "VD1M3JwI6MEu6YrA",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Campaign": {
+      "main": [
+        [
+          {
+            "node": "Manual or Campaign?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Manual Send": {
+      "main": [
+        [
+          {
+            "node": "Manual or Campaign?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual or Campaign?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Campaign Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send an Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Campaign Contacts": {
+      "main": [
+        [
+          {
+            "node": "Split in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split in Batches": {
+      "main": [
+        [
+          {
+            "node": "Send Campaign Email (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Campaign Email (SMTP)": {
+      "main": [
+        [
+          {
+            "node": "Send Campaign Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Campaign Email": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Check Batch Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Batch Complete": {
+      "main": [
+        [
+          {
+            "node": "Batch Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Complete?": {
+      "main": [
+        [
+          {
+            "node": "Continue Next Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pause 1 Hour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause 1 Hour": {
+      "main": [
+        [
+          {
+            "node": "Split in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Next Batch": {
+      "main": [
+        [
+          {
+            "node": "Split in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an Email1": {
+      "main": [
+        [
+          {
+            "node": "Log Manual Send1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "24cbdff4-faa4-4079-923a-69b1d2343342",
+  "meta": {
+    "instanceId": "7f8fd86231d775a13fa830051227c6e4252920019ffd5001e4e7f0038002f1ba"
+  },
+  "id": "sXKqJ45zVJgyX5Ql",
+  "tags": []
+}

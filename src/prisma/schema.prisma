@@ -1,0 +1,79 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  uuid       String @id @default(uuid())
+  nombre     String
+  email      String @unique
+  contrasena String
+  role       String @default("user") // "master", "manager", "user"
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  uuid      String  @id @default(uuid())
+  nombre    String
+  precio    Decimal
+  categoria String
+  stock     Int
+}
+
+model Service {
+  uuid   String @id @default(uuid())
+  nombre String
+}
+
+model Campaign {
+  uuid                String            @id @default(uuid())
+  nombre              String
+  status              String            @default("PENDING") // PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED
+  batchSize           Int               @default(7)
+  batchIntervalHours  Int               @default(3)
+  messageLimit        Int               @default(6)
+  messageIntervalHours Int               @default(5)
+  totalContacts       Int               @default(0)
+  validContacts       Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  contacts            CampaignContact[]
+  logs                CampaignLog[]
+}
+
+model CampaignContact {
+  uuid         String        @id @default(uuid())
+  campaignUuid String
+  campaign     Campaign      @relation(fields: [campaignUuid], references: [uuid], onDelete: Cascade)
+  nombre       String
+  email        String
+  isValid      Boolean
+  status       String        @default("PENDING") // PENDING, SENT, FAILED
+  logs         CampaignLog[]
+}
+
+model CampaignLog {
+  uuid         String           @id @default(uuid())
+  campaignUuid String
+  campaign     Campaign         @relation(fields: [campaignUuid], references: [uuid], onDelete: Cascade)
+  contactUuid  String?
+  contact      CampaignContact? @relation(fields: [contactUuid], references: [uuid], onDelete: Cascade)
+  messageIndex Int
+  channel      String           // SMS, TELEGRAM, EMAIL
+  status       String           @default("EMAIL") // EMAIL only
+  message      String
+  timestamp    DateTime         @default(now())
+}
+
